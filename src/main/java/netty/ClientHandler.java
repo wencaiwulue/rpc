@@ -10,4 +10,9 @@ public class ClientHandler extends ChannelInboundHandlerAdapter {
     System.out.println("response: " + msg);
     //    super.channelRead(ctx, msg);
   }
+
+  @Override
+  public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    System.out.println("exception: " + cause.getMessage());
+  }
 }
