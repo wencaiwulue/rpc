@@ -11,7 +11,18 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 
+import java.net.InetSocketAddress;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class Server {
+  private final int port;
+  private final Map<InetSocketAddress, SocketChannel> channelMap = new ConcurrentHashMap<>();
+
+  public Server(int port) {
+    this.port = port;
+  }
+
   public void start() throws InterruptedException {
     EventLoopGroup boss = new NioEventLoopGroup();
     EventLoopGroup worker = new NioEventLoopGroup();
@@ -24,6 +35,8 @@ public class Server {
               new ChannelInitializer<SocketChannel>() {
                 @Override
                 public void initChannel(SocketChannel ch) {
+                  channelMap.put(ch.remoteAddress(), ch);
+
                   ChannelPipeline pipeline = ch.pipeline();
                   pipeline.addLast(
                       "frameDecoder",
@@ -38,7 +51,7 @@ public class Server {
               })
           .option(ChannelOption.SO_BACKLOG, 128)
           .childOption(ChannelOption.SO_KEEPALIVE, Boolean.TRUE);
-      ChannelFuture f = bootstrap.bind(80).sync();
+      ChannelFuture f = bootstrap.bind(this.port).sync();
       f.channel().closeFuture().sync();
     } finally {
       boss.shutdownGracefully();
@@ -47,6 +60,6 @@ public class Server {
   }
 
   public static void main(String[] args) throws InterruptedException {
-    new Server().start();
+    new Server(80).start();
   }
 }

@@ -23,7 +23,7 @@ public class RegistryHandler extends ChannelInboundHandlerAdapter {
                 })
         .sync();
     ctx.close();
-    ReferenceCountUtil.release(msg);
+//    ReferenceCountUtil.release(msg);
   }
 
   @Override
