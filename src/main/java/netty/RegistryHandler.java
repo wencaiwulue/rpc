@@ -4,12 +4,13 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.ReferenceCountUtil;
 
 public class RegistryHandler extends ChannelInboundHandlerAdapter {
   @Override
   public void channelRead(ChannelHandlerContext ctx, Object msg) throws InterruptedException {
     System.out.println("server: " + msg);
-    ctx.writeAndFlush("ok i got it, this is a test response\r\n")
+    ctx.writeAndFlush("ok i got it, this is a test response")
         .addListener(
             (ChannelFutureListener)
                 future -> {
@@ -22,6 +23,7 @@ public class RegistryHandler extends ChannelInboundHandlerAdapter {
                 })
         .sync();
     ctx.close();
+    ReferenceCountUtil.release(msg);
   }
 
   @Override

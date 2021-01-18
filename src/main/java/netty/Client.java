@@ -23,7 +23,7 @@ public class Client {
           .handler(
               new ChannelInitializer<SocketChannel>() {
                 @Override
-                public void initChannel(SocketChannel ch) throws Exception {
+                public void initChannel(SocketChannel ch) {
                   ChannelPipeline pipeline = ch.pipeline();
                   pipeline.addLast(
                       "frameDecoder",
@@ -37,7 +37,7 @@ public class Client {
                 }
               });
       ChannelFuture f = bootstrap.connect("localhost", 80).sync();
-      f.channel().writeAndFlush("this is a test request\r\n").sync();
+      f.channel().writeAndFlush("this is a test request").sync();
       f.channel().closeFuture().sync();
     } finally {
       loopGroup.shutdownGracefully();
