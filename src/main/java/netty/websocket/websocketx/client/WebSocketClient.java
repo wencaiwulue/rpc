@@ -12,12 +12,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
-import io.netty.handler.codec.http.websocketx.WebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketVersion;
+import io.netty.handler.codec.http.websocketx.*;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketClientCompressionHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -57,6 +52,8 @@ public final class WebSocketClient {
                             p.addLast(new HttpClientCodec());
                             p.addLast(new HttpObjectAggregator(8192));
                             p.addLast(WebSocketClientCompressionHandler.INSTANCE);
+                            p.addLast(new WebSocket13FrameEncoder(true));
+                            p.addLast(new WebSocket13FrameDecoder(false, true, 65536));
                             p.addLast(handler);
                         }
                     });
