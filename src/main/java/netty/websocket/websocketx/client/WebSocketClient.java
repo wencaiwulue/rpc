@@ -17,10 +17,13 @@ import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketCl
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.IdleStateHandler;
+import netty.websocket.websocketx.server.HeartBeatHandler;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.concurrent.TimeUnit;
 
 public final class WebSocketClient {
 
@@ -54,6 +57,8 @@ public final class WebSocketClient {
                             p.addLast(WebSocketClientCompressionHandler.INSTANCE);
                             p.addLast(new WebSocket13FrameEncoder(true));
                             p.addLast(new WebSocket13FrameDecoder(false, true, 65536));
+                            p.addLast(new IdleStateHandler(2,3,5, TimeUnit.SECONDS));
+                            p.addLast(new HeartBeatHandler());
                             p.addLast(handler);
                         }
                     });
