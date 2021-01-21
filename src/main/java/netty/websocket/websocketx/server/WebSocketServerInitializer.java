@@ -33,6 +33,7 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
         pipeline.addLast(new HttpServerCodec());
         pipeline.addLast(new HttpObjectAggregator(8192));
         pipeline.addLast(new WebSocketServerCompressionHandler());
+        //  this handler will handleShake with client
         pipeline.addLast(new WebSocketServerProtocolHandler(WEBSOCKET_PATH, "diy-protocol", true));
         pipeline.addLast(new WebSocket13FrameDecoder(true, true, 65536));
         pipeline.addLast(new WebSocket13FrameEncoder(false));

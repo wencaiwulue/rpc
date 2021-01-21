@@ -13,6 +13,10 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketHandshakeException;
 import io.netty.util.CharsetUtil;
+import netty.websocket.websocketx.pub.RpcClient;
+import util.FSTUtil;
+import util.Request;
+import util.Response;
 
 public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> {
 
@@ -23,7 +27,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
         this.handShaker = handShaker;
     }
 
-    public ChannelFuture handshakeFuture() {
+    public ChannelFuture getHandshakeFuture() {
         return handshakeFuture;
     }
 
@@ -60,14 +64,23 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
         if (msg instanceof FullHttpResponse) {
             FullHttpResponse response = (FullHttpResponse) msg;
             throw new IllegalStateException(
-                    "Unexpected FullHttpResponse (getStatus=" + response.status() +
-                            ", content=" + response.content().toString(CharsetUtil.UTF_8) + ')');
+                    "Unexpected FullHttpResponse (getStatus="
+                            + response.status()
+                            + ", content="
+                            + response.content().toString(CharsetUtil.UTF_8)
+                            + ')');
         }
 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
             System.out.println("WebSocket Client received message: " + textFrame.text());
+            Object o = FSTUtil.getConf().asObject(textFrame.copy().content().array());
+            if (o instanceof Response) {
+                RpcClient.addResponse(((Response) o).requestId, (Response) o);
+            } else if (o instanceof Request) {
+                // todo logic
+            }
         } else if (frame instanceof PongWebSocketFrame) {
             System.out.println("WebSocket Client received pong");
         } else if (frame instanceof CloseWebSocketFrame) {

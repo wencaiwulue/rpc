@@ -3,6 +3,7 @@ package netty.websocket.websocketx.client;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
@@ -18,19 +19,23 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.timeout.IdleStateHandler;
+import netty.websocket.websocketx.pub.RpcClient;
 import netty.websocket.websocketx.server.HeartBeatHandler;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public final class WebSocketClient {
 
-    static final String URL = "wss://127.0.0.1:8443/";
+    static final String URL = "wss://%s:%s/";
+    static int port = Integer.parseInt(System.getProperty("","8080"));
 
-    public static void main(String[] args) throws Exception {
-        URI uri = new URI(URL);
+    public static void doConnection(InetSocketAddress address) throws Exception {
+        URI uri = new URI(String.format(URL, address.getHostName(), address.getPort()));
 
         final SslContext sslCtx = SslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
@@ -38,11 +43,8 @@ public final class WebSocketClient {
 
         EventLoopGroup group = new NioEventLoopGroup();
         try {
-            final WebSocketClientHandler handler =
-                    new WebSocketClientHandler(
-                            WebSocketClientHandshakerFactory.newHandshaker(
-                                    uri, WebSocketVersion.V13, "diy-protocol", true, new DefaultHttpHeaders()));
 
+            AtomicReference<WebSocketClientHandler> ref = new AtomicReference<>();
             Bootstrap bootstrap = new Bootstrap();
             bootstrap
                     .group(group)
@@ -57,14 +59,21 @@ public final class WebSocketClient {
                             p.addLast(WebSocketClientCompressionHandler.INSTANCE);
                             p.addLast(new WebSocket13FrameEncoder(true));
                             p.addLast(new WebSocket13FrameDecoder(false, true, 65536));
-                            p.addLast(new IdleStateHandler(2,3,5, TimeUnit.SECONDS));
+                            p.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
                             p.addLast(new HeartBeatHandler());
-                            p.addLast(handler);
+                            DefaultHttpHeaders headers = new DefaultHttpHeaders();
+                            headers.add("localhost", "127.0.0.1");
+                            headers.add("localport", port);
+                            WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
+                                    uri, WebSocketVersion.V13, "diy-protocol", true, headers);
+                            ref.set(new WebSocketClientHandler(handshaker));
+                            p.addLast(ref.get());
                         }
                     });
 
             Channel ch = bootstrap.connect(uri.getHost(), uri.getPort()).sync().channel();
-            handler.handshakeFuture().sync();
+            ref.get().getHandshakeFuture().sync();
+            RpcClient.addConnection(new InetSocketAddress("127.0.0.1", port), ch);
 
             BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
             while (true) {
@@ -72,15 +81,15 @@ public final class WebSocketClient {
                 if (msg == null) {
                     break;
                 } else if ("bye".equalsIgnoreCase(msg)) {
-                    ch.writeAndFlush(new CloseWebSocketFrame());
+                    ch.writeAndFlush(new CloseWebSocketFrame()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                     ch.closeFuture().sync();
                     break;
                 } else if ("ping".equalsIgnoreCase(msg)) {
                     WebSocketFrame frame = new PingWebSocketFrame(Unpooled.wrappedBuffer(new byte[]{8, 1, 8, 1}));
-                    ch.writeAndFlush(frame);
+                    ch.writeAndFlush(frame).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                 } else {
                     WebSocketFrame frame = new TextWebSocketFrame(msg);
-                    ch.writeAndFlush(frame);
+                    ch.writeAndFlush(frame).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
                 }
             }
         } finally {
