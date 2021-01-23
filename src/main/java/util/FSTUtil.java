@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
  */
 public class FSTUtil { // use for communication serialization
 
-    private static final FSTConfiguration CONF = FSTConfiguration.createDefaultConfiguration();
+    private static final FSTConfiguration CONF = FSTConfiguration.createJsonNoRefConfiguration();
 
     public static FSTConfiguration getConf() {
         return CONF;

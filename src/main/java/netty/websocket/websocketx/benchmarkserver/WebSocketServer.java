@@ -9,14 +9,18 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 
+import java.net.InetSocketAddress;
+
 public final class WebSocketServer {
 
-    public static final int PORT = 8443;
+    public static final int PORT = Integer.parseInt(System.getenv("port"));
+    public static final InetSocketAddress SELF = new InetSocketAddress("127.0.0.1", PORT);
 
     public static void main(String[] args) throws Exception {
         // Configure SSL.
         SelfSignedCertificate ssc = new SelfSignedCertificate();
-        final SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
+        final SslContext sslCtx =
+                SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
 
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
         EventLoopGroup workerGroup = new NioEventLoopGroup();

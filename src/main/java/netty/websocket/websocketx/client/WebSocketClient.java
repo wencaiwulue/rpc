@@ -1,9 +1,7 @@
 package netty.websocket.websocketx.client;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
@@ -19,78 +17,57 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.timeout.IdleStateHandler;
+import netty.websocket.websocketx.benchmarkserver.WebSocketServer;
 import netty.websocket.websocketx.pub.RpcClient;
 import netty.websocket.websocketx.server.HeartBeatHandler;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class WebSocketClient {
-    public static void doConnection(InetSocketAddress address) throws Exception {
-        String URL = "wss://%s:%s/";
-        URI uri = new URI(String.format(URL, address.getHostName(), address.getPort()));
+  static final EventLoopGroup EVENT_LOOP = new NioEventLoopGroup(1);
 
-        final SslContext sslCtx = SslContextBuilder.forClient()
-                .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+  public static void doConnection(InetSocketAddress address) throws Exception {
 
+    URI uri = new URI("wss", null, address.getHostName(), address.getPort(), "/", null, null);
 
-        EventLoopGroup group = new NioEventLoopGroup();
-        try {
+    final SslContext sslCtx =
+        SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
-            AtomicReference<WebSocketClientHandler> ref = new AtomicReference<>();
-            Bootstrap bootstrap = new Bootstrap();
-            bootstrap
-                    .group(group)
-                    .channel(NioSocketChannel.class)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ChannelPipeline p = ch.pipeline();
-                            p.addLast(sslCtx.newHandler(ch.alloc(), uri.getHost(), uri.getPort()));
-                            p.addLast(new HttpClientCodec());
-                            p.addLast(new HttpObjectAggregator(8192));
-                            p.addLast(WebSocketClientCompressionHandler.INSTANCE);
-                            p.addLast(new WebSocket13FrameEncoder(true));
-                            p.addLast(new WebSocket13FrameDecoder(false, true, 65536));
-                            p.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
-                            p.addLast(new HeartBeatHandler());
-                            DefaultHttpHeaders headers = new DefaultHttpHeaders();
-                            headers.add("localhost", address.getHostName());
-                            headers.add("localport", address.getPort());
-                            WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
-                                    uri, WebSocketVersion.V13, "diy-protocol", true, headers);
-                            ref.set(new WebSocketClientHandler(handshaker));
-                            p.addLast(ref.get());
-                        }
-                    });
+    AtomicReference<WebSocketClientHandler> ref = new AtomicReference<>();
+    Bootstrap bootstrap = new Bootstrap();
+    bootstrap
+        .group(EVENT_LOOP)
+        .channel(NioSocketChannel.class)
+        .handler(
+            new ChannelInitializer<SocketChannel>() {
+              @Override
+              protected void initChannel(SocketChannel ch) {
+                ChannelPipeline pipeline = ch.pipeline();
+                pipeline.addLast(sslCtx.newHandler(ch.alloc(), uri.getHost(), uri.getPort()));
+                pipeline.addLast(new HttpClientCodec());
+                pipeline.addLast(new HttpObjectAggregator(8192));
+                pipeline.addLast(WebSocketClientCompressionHandler.INSTANCE);
+                pipeline.addLast(new WebSocket13FrameEncoder(true));
+                pipeline.addLast(new WebSocket13FrameDecoder(false, true, 65536));
+                pipeline.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
+                pipeline.addLast(new HeartBeatHandler());
+                DefaultHttpHeaders headers = new DefaultHttpHeaders();
+                headers.add("localhost", WebSocketServer.SELF.getHostName());
+                headers.add("localport", WebSocketServer.SELF.getPort());
+                WebSocketClientHandshaker handshaker =
+                    WebSocketClientHandshakerFactory.newHandshaker(
+                        uri, WebSocketVersion.V13, "diy-protocol", true, headers);
+                ref.set(new WebSocketClientHandler(handshaker));
+                pipeline.addLast(ref.get());
+              }
+            });
 
-            Channel ch = bootstrap.connect(uri.getHost(), uri.getPort()).sync().channel();
-            ref.get().getHandshakeFuture().sync();
-            RpcClient.addConnection(address, ch);
-
-            BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
-            while (true) {
-                String msg = console.readLine();
-                if (msg == null) {
-                    break;
-                } else if ("bye".equalsIgnoreCase(msg)) {
-                    ch.writeAndFlush(new CloseWebSocketFrame()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-                    ch.closeFuture().sync();
-                    break;
-                } else if ("ping".equalsIgnoreCase(msg)) {
-                    WebSocketFrame frame = new PingWebSocketFrame(Unpooled.wrappedBuffer(new byte[]{8, 1, 8, 1}));
-                    ch.writeAndFlush(frame).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-                } else {
-                    WebSocketFrame frame = new TextWebSocketFrame(msg);
-                    ch.writeAndFlush(frame).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
-                }
-            }
-        } finally {
-            group.shutdownGracefully();
-        }
-    }
+    Channel channel = bootstrap.connect(uri.getHost(), uri.getPort()).sync().channel();
+    ref.get().getHandshakeFuture().sync();
+    RpcClient.addConnection(address, channel);
+    //    channel.closeFuture().sync();
+  }
 }
