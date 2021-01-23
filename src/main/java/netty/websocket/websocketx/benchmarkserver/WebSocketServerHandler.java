@@ -38,9 +38,11 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> 
     private void handleHttpRequest(ChannelHandlerContext ctx, FullHttpRequest req) {
         String localhost = req.headers().get("localhost");
         int localport = req.headers().getInt("localport", 8080);
+        System.out.printf("localhost: %s, localport: %s\n", localhost, localport);
         remote = new InetSocketAddress(localhost, localport);
         // Handshake
         String uri = "wss://" + req.headers().get(HttpHeaderNames.HOST) + WEBSOCKET_PATH;
+        System.out.println(uri);
         WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
                 uri, "diy-protocol", true, 5 * 1024 * 1024);
         handShaker = wsFactory.newHandshaker(req);
@@ -67,12 +69,17 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> 
             // Echo the frame
             ctx.write(frame.retain());
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
-            System.out.println("WebSocket Client received message: " + textFrame.retain().duplicate().text());
-            Object o = FSTUtil.getConf().asObject(textFrame.copy().content().array());
+            byte[] array = textFrame.retain().duplicate().content().array();
+            System.out.println("WebSocket Client received message: " + new String(array));
+            Object o = FSTUtil.getConf().asObject(array);
             if (o instanceof Response) {
                 RpcClient.addResponse(((Response) o).requestId, (Response) o);
             } else if (o instanceof Request) {
-                // todo logic
+                if (WebSocketServer.PORT == 8443) {
+                    RpcClient.doRequest(new InetSocketAddress("127.0.0.1", 8444), new Request() {
+                    });
+                }
+                System.out.println(WebSocketServer.PORT + ": receive message from: " + remote.getPort());
             }
             return;
         }
@@ -80,7 +87,10 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> 
             // Echo the frame
             ctx.write(frame.retain());
             BinaryWebSocketFrame binaryFrame = (BinaryWebSocketFrame) frame;
-            System.out.println("WebSocket Client received message: " + binaryFrame.duplicate());
+            byte[] bytes = new byte[binaryFrame.duplicate().retain().content().readableBytes()];
+            System.out.println(bytes.length);
+            binaryFrame.duplicate().content().readBytes(bytes);
+            System.out.println("WebSocket Client received message: " + new String(bytes));
             Object o = FSTUtil.getConf().asObject(binaryFrame.copy().content().array());
             if (o instanceof Response) {
                 RpcClient.addResponse(((Response) o).requestId, (Response) o);

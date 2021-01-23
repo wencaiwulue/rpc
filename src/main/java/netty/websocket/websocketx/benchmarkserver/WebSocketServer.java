@@ -11,7 +11,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
 
 public final class WebSocketServer {
 
-    static final int PORT = 8443;
+    public static final int PORT = 8443;
 
     public static void main(String[] args) throws Exception {
         // Configure SSL.

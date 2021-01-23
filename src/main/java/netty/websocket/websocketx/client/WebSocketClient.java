@@ -30,11 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class WebSocketClient {
-
-    static final String URL = "wss://%s:%s/";
-    static int port = Integer.parseInt(System.getProperty("","8080"));
-
     public static void doConnection(InetSocketAddress address) throws Exception {
+        String URL = "wss://%s:%s/";
         URI uri = new URI(String.format(URL, address.getHostName(), address.getPort()));
 
         final SslContext sslCtx = SslContextBuilder.forClient()
@@ -62,8 +59,8 @@ public final class WebSocketClient {
                             p.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
                             p.addLast(new HeartBeatHandler());
                             DefaultHttpHeaders headers = new DefaultHttpHeaders();
-                            headers.add("localhost", "127.0.0.1");
-                            headers.add("localport", port);
+                            headers.add("localhost", address.getHostName());
+                            headers.add("localport", address.getPort());
                             WebSocketClientHandshaker handshaker = WebSocketClientHandshakerFactory.newHandshaker(
                                     uri, WebSocketVersion.V13, "diy-protocol", true, headers);
                             ref.set(new WebSocketClientHandler(handshaker));
@@ -73,7 +70,7 @@ public final class WebSocketClient {
 
             Channel ch = bootstrap.connect(uri.getHost(), uri.getPort()).sync().channel();
             ref.get().getHandshakeFuture().sync();
-            RpcClient.addConnection(new InetSocketAddress("127.0.0.1", port), ch);
+            RpcClient.addConnection(address, ch);
 
             BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
             while (true) {

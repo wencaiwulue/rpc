@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -29,6 +30,7 @@ public class RpcClient {
     private static final ReentrantLock lock = new ReentrantLock();
     private static final Condition empty = lock.newCondition();
     private static final Condition notEmpty = lock.newCondition();
+    private static final CyclicBarrier barrier = new CyclicBarrier(1);
 
     public static void addConnection(InetSocketAddress k, Channel v) {
         CONNECTIONS.put(k, v);
@@ -67,7 +69,6 @@ public class RpcClient {
         SocketRequest request1 = new SocketRequest(remote, request);
         REQUEST_TASK.addLast(request1);
         RESPONSE_MAP_LOCK.put(request.requestId, latch);
-        notEmpty.signal();
 
         try {
             boolean a = latch.await(5, TimeUnit.SECONDS);
@@ -85,23 +86,29 @@ public class RpcClient {
     }
 
     private static void writeRequest() {
-        while (true){
-            if (!REQUEST_TASK.isEmpty()) {
-                SocketRequest socketRequest = REQUEST_TASK.poll();
-                if (socketRequest != null && !socketRequest.cancelled) {
-                    boolean success = false;
-                    int retry = 0;
-                    while (retry++ < 3) {
-                        Channel channel = getConnection(socketRequest.address);
-                        if (channel != null /*&& socketRequest.address.alive*/) {
-                            channel.writeAndFlush(socketRequest.request);
-                            success = true;
-                            break;
+        while (true) {
+            try {
+                while (!REQUEST_TASK.isEmpty()) {
+                    SocketRequest socketRequest = REQUEST_TASK.poll();
+                    if (socketRequest != null && !socketRequest.cancelled) {
+                        boolean success = false;
+                        int retry = 0;
+                        while (retry++ < 3) {
+                            Channel channel = getConnection(socketRequest.address);
+                            if (channel != null /*&& socketRequest.address.alive*/) {
+                                channel.writeAndFlush(socketRequest.request);
+                                success = true;
+                                break;
+                            }
                         }
                     }
                 }
+                barrier.await();
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                lock.unlock();
             }
-            empty.signal();
         }
     }
 
