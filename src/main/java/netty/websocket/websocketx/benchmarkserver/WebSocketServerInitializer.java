@@ -13,22 +13,22 @@ import java.util.concurrent.TimeUnit;
 
 public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
-  private final SslContext sslCtx;
+    private final SslContext sslCtx;
 
-  public WebSocketServerInitializer(SslContext sslCtx) {
-    this.sslCtx = sslCtx;
-  }
-
-  @Override
-  public void initChannel(SocketChannel ch) {
-    ChannelPipeline pipeline = ch.pipeline();
-    if (sslCtx != null) {
-      pipeline.addLast(sslCtx.newHandler(ch.alloc()));
+    public WebSocketServerInitializer(SslContext sslCtx) {
+        this.sslCtx = sslCtx;
     }
-    pipeline.addLast(new HttpServerCodec());
-    pipeline.addLast(new HttpObjectAggregator(65536));
-    pipeline.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
-    pipeline.addLast(new HeartBeatHandler());
-    pipeline.addLast(new WebSocketServerHandler());
-  }
+
+    @Override
+    public void initChannel(SocketChannel ch) {
+        ChannelPipeline pipeline = ch.pipeline();
+        if (sslCtx != null) {
+            pipeline.addLast(sslCtx.newHandler(ch.alloc()));
+        }
+        pipeline.addLast(new HttpServerCodec());
+        pipeline.addLast(new HttpObjectAggregator(65536));
+        pipeline.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
+        pipeline.addLast(new HeartBeatHandler());
+        pipeline.addLast(new WebSocketServerHandler());
+    }
 }

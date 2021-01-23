@@ -37,7 +37,7 @@ public class WebSocketServerInitializer extends ChannelInitializer<SocketChannel
         pipeline.addLast(new WebSocketServerProtocolHandler(WEBSOCKET_PATH, "diy-protocol", true));
         pipeline.addLast(new WebSocket13FrameDecoder(true, true, 65536));
         pipeline.addLast(new WebSocket13FrameEncoder(false));
-        pipeline.addLast(new IdleStateHandler(2,3,5, TimeUnit.SECONDS));
+        pipeline.addLast(new IdleStateHandler(2, 3, 5, TimeUnit.SECONDS));
         pipeline.addLast(new HeartBeatHandler());
         pipeline.addLast(new WebSocketFrameHandler());
     }

@@ -77,7 +77,7 @@ public class NettyTest {
                     break;
                 } else if ("ping".equalsIgnoreCase(msg)) {
                     WebSocketFrame frame =
-                            new PingWebSocketFrame(Unpooled.wrappedBuffer(new byte[] {8, 1, 8, 1}));
+                            new PingWebSocketFrame(Unpooled.wrappedBuffer(new byte[]{8, 1, 8, 1}));
                     ch.writeAndFlush(frame);
                 } else {
                     Request request = new Request();
