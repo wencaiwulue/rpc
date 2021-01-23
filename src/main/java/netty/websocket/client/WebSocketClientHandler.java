@@ -1,22 +1,28 @@
-package netty.websocket.websocketx.client;
+package netty.websocket.client;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.websocketx.*;
 import io.netty.util.CharsetUtil;
-import netty.websocket.websocketx.pub.RpcClient;
+import netty.websocket.benchmarkserver.WebSocketServer;
+import netty.websocket.pub.RpcClient;
 import util.FSTUtil;
 import util.Request;
 import util.Response;
+
+import java.net.InetSocketAddress;
 
 public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> {
 
     private final WebSocketClientHandshaker handShaker;
     private ChannelPromise handshakeFuture;
+    private final InetSocketAddress remote;
 
-    public WebSocketClientHandler(WebSocketClientHandshaker handShaker) {
+    public WebSocketClientHandler(WebSocketClientHandshaker handShaker, InetSocketAddress remote) {
         this.handShaker = handShaker;
+        this.remote = remote;
     }
 
     public ChannelFuture getHandshakeFuture() {
@@ -36,7 +42,9 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         System.out.println("WebSocket Client disconnected!");
-        RpcClient.CONNECTIONS.entrySet().stream()
+        RpcClient.getConnection()
+                .entrySet()
+                .stream()
                 .filter(e -> e.getValue() == ctx.channel())
                 .findFirst()
                 .ifPresent(entry -> System.out.println("with server: " + entry.getKey().toString()));
@@ -69,13 +77,13 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if (frame instanceof PingWebSocketFrame) {
-            System.out.println("WebSocket Client received ping");
+//            System.out.println("WebSocket Client received ping");
             ctx.writeAndFlush(new PongWebSocketFrame(frame.content().retain()))
                     .addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
             return;
         }
         if (frame instanceof CloseWebSocketFrame) {
-            System.out.println("WebSocket Client received closing");
+//            System.out.println("WebSocket Client received closing");
             ch.close();
             return;
         }
@@ -85,12 +93,14 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
             byte[] bytes = new byte[buffer.capacity()];
             System.out.println(bytes.length);
             buffer.readBytes(bytes);
-            System.out.println("WebSocket Client received message: " + new String(bytes));
-            Object o = FSTUtil.getConf().asObject(bytes);
-            if (o instanceof Response) {
-                RpcClient.addResponse(((Response) o).requestId, (Response) o);
-            } else if (o instanceof Request) {
-                // todo logic
+            System.out.printf("%s --> %s message: %s\n", remote.getPort(), WebSocketServer.SELF.getPort(), new String(bytes));
+            Object object = FSTUtil.getConf().asObject(bytes);
+            if (object instanceof Response) {
+                RpcClient.addResponse(((Response) object).requestId, (Response) object);
+            } else if (object instanceof Request) {
+                String jsonString = FSTUtil.getConf().asJsonString(new Response(((Request) object).requestId));
+                ctx.writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(jsonString.getBytes())))
+                        .addListeners(ChannelFutureListener.CLOSE_ON_FAILURE);
             }
         }
     }

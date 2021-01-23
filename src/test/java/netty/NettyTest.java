@@ -14,12 +14,13 @@ import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketCl
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import netty.websocket.websocketx.client.WebSocketClientHandler;
+import netty.websocket.client.WebSocketClientHandler;
 import util.FSTUtil;
 import util.Request;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.net.URI;
 
 public class NettyTest {
@@ -29,18 +30,15 @@ public class NettyTest {
     public static void main(String[] args) throws Exception {
         URI uri = new URI(URL);
 
-        final SslContext sslCtx =
-                SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+        SslContext sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
         EventLoopGroup group = new NioEventLoopGroup();
         try {
-            DefaultHttpHeaders entries = new DefaultHttpHeaders();
-            entries.add("localhost", "127.0.0.1");
-            entries.add("localport", 8445);
-            final WebSocketClientHandler handler =
-                    new WebSocketClientHandler(
-                            WebSocketClientHandshakerFactory.newHandshaker(
-                                    uri, WebSocketVersion.V13, "diy-protocol", true, entries));
+            DefaultHttpHeaders httpHeaders = new DefaultHttpHeaders();
+            httpHeaders.add("localhost", "127.0.0.1");
+            httpHeaders.add("localport", 8445);
+            WebSocketClientHandshaker handshake = WebSocketClientHandshakerFactory.newHandshaker(uri, WebSocketVersion.V13, "diy-protocol", true, httpHeaders);
+            WebSocketClientHandler handler = new WebSocketClientHandler(handshake, new InetSocketAddress(uri.getHost(), uri.getPort()));
 
             Bootstrap bootstrap = new Bootstrap();
             bootstrap
@@ -82,8 +80,7 @@ public class NettyTest {
                 } else {
                     Request request = new Request();
                     String jsonString = FSTUtil.getConf().asJsonString(request);
-                    WebSocketFrame frame =
-                            new BinaryWebSocketFrame(Unpooled.wrappedBuffer(jsonString.getBytes()));
+                    WebSocketFrame frame = new BinaryWebSocketFrame(Unpooled.wrappedBuffer(jsonString.getBytes()));
                     ch.writeAndFlush(frame);
                 }
             }

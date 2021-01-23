@@ -1,10 +1,11 @@
-package netty.websocket.websocketx.pub;
+package netty.websocket.pub;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import netty.websocket.websocketx.client.WebSocketClient;
+import netty.websocket.client.WebSocketClient;
 import util.FSTUtil;
 import util.Request;
 import util.Response;
@@ -19,12 +20,10 @@ import java.util.function.Supplier;
  * @since 3/14/2020 15:46
  */
 public class RpcClient {
-    public static final Map<InetSocketAddress, Channel> CONNECTIONS =
-            new ConcurrentHashMap<>(); // 主节点于各个简单的链接
+    private static final Map<InetSocketAddress, Channel> CONNECTIONS = new ConcurrentHashMap<>(); // 主节点于各个简单的链接
     private static final Map<Integer, Response> RESPONSE_MAP = new ConcurrentHashMap<>();
     private static final Map<Integer, CountDownLatch> RESPONSE_MAP_LOCK = new ConcurrentHashMap<>();
-    private static final ArrayBlockingQueue<SocketRequest> REQUEST_TASK =
-            new ArrayBlockingQueue<>(10 * 1000 * 1000);
+    private static final ArrayBlockingQueue<SocketRequest> REQUEST_TASK = new ArrayBlockingQueue<>(10 * 1000 * 1000);
     private static final CyclicBarrier barrier = new CyclicBarrier(1);
 
     static {
@@ -33,6 +32,10 @@ public class RpcClient {
 
     public static void addConnection(InetSocketAddress k, Channel v) {
         CONNECTIONS.put(k, v);
+    }
+
+    public static Map<InetSocketAddress, Channel> getConnection() {
+        return ImmutableMap.copyOf(CONNECTIONS);
     }
 
     public static void addResponse(int k, Response v) {
@@ -45,21 +48,15 @@ public class RpcClient {
 
     private static Channel getConnection(InetSocketAddress remote) {
         if (remote == null) return null;
-        Supplier<Boolean> supplier =
-                () ->
-                        !CONNECTIONS.containsKey(remote)
-                                || !CONNECTIONS.get(remote).isOpen()
-                                || !CONNECTIONS.get(remote).isActive()
-                                || !CONNECTIONS.get(remote).isRegistered();
+        Supplier<Boolean> supplier = () -> !CONNECTIONS.containsKey(remote)
+                || !CONNECTIONS.get(remote).isOpen()
+                || !CONNECTIONS.get(remote).isActive()
+                || !CONNECTIONS.get(remote).isRegistered();
 
         if (supplier.get()) {
             synchronized (remote.toString().intern()) {
                 if (supplier.get()) {
-                    try {
-                        WebSocketClient.doConnection(remote);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    WebSocketClient.doConnection(remote);
                 }
             }
         }
@@ -72,8 +69,8 @@ public class RpcClient {
         CountDownLatch latch = new CountDownLatch(1);
         SocketRequest socketRequest = new SocketRequest(remote, request);
         try {
-            RESPONSE_MAP_LOCK.put(request.requestId, latch);
             REQUEST_TASK.put(socketRequest);
+            RESPONSE_MAP_LOCK.put(request.requestId, latch);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -108,8 +105,7 @@ public class RpcClient {
                     Channel channel = getConnection(socketRequest.address);
                     if (channel != null) {
                         String json = FSTUtil.getConf().asJsonString(socketRequest.request);
-                        channel
-                                .writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(json.getBytes())))
+                        channel.writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(json.getBytes())))
                                 .addListeners(ChannelFutureListener.CLOSE_ON_FAILURE);
                         success = true;
                         break;
