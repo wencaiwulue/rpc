@@ -10,12 +10,13 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.websocketx.*;
 import netty.websocket.config.Constant;
-import netty.websocket.pub.RpcClient;
+import netty.websocket.RpcClient;
 import util.FSTUtil;
 import util.Request;
 import util.Response;
 
 import java.net.InetSocketAddress;
+import java.util.function.Consumer;
 
 @ChannelHandler.Sharable
 public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> {
@@ -77,10 +78,12 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> 
                 RpcClient.addResponse(((Response) object).requestId, (Response) object);
             } else if (object instanceof Request) {
                 if (WebSocketServer.PORT == 8443) {
-                    Response response = RpcClient.doRequest(new InetSocketAddress("127.0.0.1", 8444), new Request());
-                    String jsonString = FSTUtil.getConf().asJsonString(response);
-                    ctx.writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(jsonString.getBytes())))
-                            .addListeners(ChannelFutureListener.CLOSE_ON_FAILURE);
+                    Consumer<Response> c = res -> {
+                        byte[] jsonString = FSTUtil.getConf().asByteArray(res);
+                        ctx.writeAndFlush(new BinaryWebSocketFrame(Unpooled.wrappedBuffer(jsonString)))
+                                .addListeners(ChannelFutureListener.CLOSE_ON_FAILURE);
+                    };
+                    RpcClient.doRequestAsync(new InetSocketAddress("127.0.0.1", 8444), new Request(), c);
                     return;
                 }
                 System.out.printf("%s --> %s message: %s\n", remote.getPort(), WebSocketServer.PORT, FSTUtil.getConf().asJsonString(object));

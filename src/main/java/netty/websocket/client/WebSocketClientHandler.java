@@ -7,7 +7,7 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.websocketx.*;
 import io.netty.util.CharsetUtil;
 import netty.websocket.benchmarkserver.WebSocketServer;
-import netty.websocket.pub.RpcClient;
+import netty.websocket.RpcClient;
 import util.FSTUtil;
 import util.Request;
 import util.Response;

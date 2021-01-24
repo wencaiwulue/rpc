@@ -20,7 +20,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import netty.websocket.benchmarkserver.WebSocketServer;
 import netty.websocket.server.HeartBeatHandler;
 import netty.websocket.config.Constant;
-import netty.websocket.pub.RpcClient;
+import netty.websocket.RpcClient;
 
 import java.net.InetSocketAddress;
 import java.net.URI;

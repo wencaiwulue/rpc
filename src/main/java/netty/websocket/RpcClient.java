@@ -1,4 +1,4 @@
-package netty.websocket.pub;
+package netty.websocket;
 
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.Unpooled;
@@ -13,6 +13,7 @@ import util.Response;
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -20,11 +21,12 @@ import java.util.function.Supplier;
  * @since 3/14/2020 15:46
  */
 public class RpcClient {
-    private static final Map<InetSocketAddress, Channel> CONNECTIONS = new ConcurrentHashMap<>(); // 主节点于各个简单的链接
+    private static final Map<InetSocketAddress, Channel> CONNECTIONS = new ConcurrentHashMap<>();
+    private static final ArrayBlockingQueue<SocketRequest> REQUEST_TASK = new ArrayBlockingQueue<>(10 * 1000 * 1000);
     private static final Map<Integer, Response> RESPONSE_MAP = new ConcurrentHashMap<>();
     private static final Map<Integer, CountDownLatch> RESPONSE_MAP_LOCK = new ConcurrentHashMap<>();
-    private static final ArrayBlockingQueue<SocketRequest> REQUEST_TASK = new ArrayBlockingQueue<>(10 * 1000 * 1000);
-    private static final CyclicBarrier barrier = new CyclicBarrier(1);
+    private static final Map<Integer, Consumer<Response>> RESPONSE_CONSUMER = new ConcurrentHashMap<>();
+
 
     static {
         new Thread(RpcClient::writeRequest).start();
@@ -38,11 +40,16 @@ public class RpcClient {
         return ImmutableMap.copyOf(CONNECTIONS);
     }
 
-    public static void addResponse(int k, Response v) {
-        RESPONSE_MAP.put(k, v);
-        CountDownLatch latch = RESPONSE_MAP_LOCK.get(k);
+    public static void addResponse(int requestId, Response response) {
+        RESPONSE_MAP.put(requestId, response);
+        CountDownLatch latch = RESPONSE_MAP_LOCK.get(requestId);
         if (latch != null) {
             latch.countDown();
+        } else {
+            Consumer<Response> consumer = RESPONSE_CONSUMER.remove(requestId);
+            if (consumer != null) {
+                consumer.accept(response);
+            }
         }
     }
 
@@ -88,6 +95,19 @@ public class RpcClient {
         Response response = RESPONSE_MAP.remove(request.requestId);
         System.out.printf("response info: %s\n", FSTUtil.getConf().asJsonString(response));
         return response;
+    }
+
+    public static void doRequestAsync(InetSocketAddress remote, Request request, Consumer<Response> nextTodo) {
+        if (remote == null) {
+            return;
+        }
+        SocketRequest socketRequest = new SocketRequest(remote, request);
+        try {
+            REQUEST_TASK.put(socketRequest);
+            RESPONSE_CONSUMER.put(request.requestId, nextTodo);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private static void writeRequest() {
